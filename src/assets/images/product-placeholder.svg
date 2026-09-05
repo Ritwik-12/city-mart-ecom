@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+  <rect width="600" height="600" rx="32" fill="#f5f3ff"/>
+  <circle cx="300" cy="270" r="145" fill="#ede9fe"/>
+  <path d="M210 315h180l-25 70H235z" fill="#7c3aed" opacity=".85"/>
+  <rect x="245" y="185" width="110" height="150" rx="28" fill="#fff" stroke="#7c3aed" stroke-width="10"/>
+  <circle cx="300" cy="255" r="34" fill="#7c3aed"/>
+  <text x="300" y="500" text-anchor="middle" fill="#6b7280" font-size="28" font-family="Arial">Ecom</text>
+</svg>
