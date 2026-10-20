@@ -7,3 +7,8 @@ export const placeOrder = async (paymentMethod, payload) => {
   );
   return data;
 };
+
+export const createRazorpayOrder = async () => {
+  const { data } = await api.post("/api/order/razorpay/create");
+  return data; // { keyId, razorpayOrderId, amount, currency }
+};

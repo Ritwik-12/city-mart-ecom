@@ -3,7 +3,7 @@ import { Check, CreditCard, MapPin, Plus, ShoppingBag } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { getUserAddresses } from "../../services/addressService";
-import { placeOrder } from "../../services/orderService";
+import { placeOrder, createRazorpayOrder } from "../../services/orderService";
 import { clearCart } from "../../store/slices/cartSlice";
 import { fetchClientSecret, clearClientSecret } from "../../store/slices/stripeSlice";
 import { formatCurrency } from "../../utils/product";
@@ -51,7 +51,7 @@ const Checkout = () => {
     dispatch(fetchClientSecret({ amount: Math.round(totalPrice * 100), currency: "inr" }));
   }, [paymentMethod, totalPrice, dispatch]);
 
-  const submitOrder = async ({ pgName, pgPaymentId, pgStatus, pgResponseMessage }) => {
+  const submitOrder = async ({ pgName, pgPaymentId, pgStatus, pgResponseMessage ,pgOrderId, pgSignature }) => {
     if (!addressId) {
       toast.error("Please select a shipping address.");
       return;
@@ -72,6 +72,8 @@ const Checkout = () => {
         pgPaymentId,
         pgStatus,
         pgResponseMessage,
+        pgOrderId,
+        pgSignature,
       });
 
       dispatch(clearCart());
@@ -98,6 +100,59 @@ const Checkout = () => {
       pgStatus: "PENDING",
       pgResponseMessage: "",
     });
+
+
+    const payWithRazorpay = async () => {
+  if (!addressId) {
+    toast.error("Please select a shipping address.");
+    return;
+  }
+  if (!products.length) {
+    toast.error("Your cart is empty.");
+    return;
+  }
+  if (!window.Razorpay) {
+    toast.error("Razorpay failed to load. Refresh and try again.");
+    return;
+  }
+
+  setPlacing(true);
+  try {
+    // Amount is computed from the cart on the server, never sent from here.
+    const rzp = await createRazorpayOrder();
+
+    const checkout = new window.Razorpay({
+      key: rzp.keyId,
+      amount: rzp.amount,
+      currency: rzp.currency,
+      order_id: rzp.razorpayOrderId,
+      name: "Ecom",
+      description: "Order payment",
+      theme: { color: "#7c3aed" },
+      handler: (response) =>
+        // The backend re-verifies the signature and payment before creating the order.
+        submitOrder({
+          pgName: "Razorpay",
+          pgPaymentId: response.razorpay_payment_id,
+          pgOrderId: response.razorpay_order_id,
+          pgSignature: response.razorpay_signature,
+          pgStatus: "PENDING",
+          pgResponseMessage: "Payment confirmed via Razorpay",
+        }),
+      modal: { ondismiss: () => setPlacing(false) },
+    });
+
+    checkout.on("payment.failed", (resp) => {
+      toast.error(resp?.error?.description || "Payment failed. Please try again.");
+      setPlacing(false);
+    });
+
+    checkout.open();
+  } catch (error) {
+    toast.error(error?.response?.data?.message || "Unable to start payment.");
+    setPlacing(false);
+  }
+};
 
   // Called by PaymentForm once Stripe confirms the charge succeeded.
   // The backend independently re-verifies this PaymentIntent with Stripe
@@ -234,10 +289,17 @@ const Checkout = () => {
 
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {[
-                    ["COD", "Cash on Delivery"],
-                    ["ONLINE", "Pay online"],
-                  ].map(([value, label]) => {
+  ["COD", "Cash on Delivery"],
+  ["ONLINE", "Pay online"],
+  ["RAZORPAY", "Razorpay"],
+].map(([value, label]) => {
                     const selected = paymentMethod === value;
+
+                    {value === "COD"
+  ? "Pay when your order arrives."
+  : value === "RAZORPAY"
+    ? "UPI, cards and netbanking via Razorpay."
+    : "Cards, UPI, and more via Stripe."}
 
                     return (
                       <label
@@ -327,7 +389,7 @@ const Checkout = () => {
                 <span>{formatCurrency(subtotal)}</span>
               </div>
 
-              <Button
+             {/* <Button
                 loading={placing}
                 onClick={submitCod}
                 className="mt-5 w-full"
@@ -336,7 +398,20 @@ const Checkout = () => {
                 {paymentMethod === "ONLINE"
                   ? "Complete payment above"
                   : "Place Order"}
-              </Button>
+              </Button>  */}
+
+              <Button
+  loading={placing}
+  onClick={paymentMethod === "RAZORPAY" ? payWithRazorpay : submitCod}
+  className="mt-5 w-full"
+  disabled={paymentMethod === "ONLINE"}
+>
+  {paymentMethod === "ONLINE"
+    ? "Complete payment above"
+    : paymentMethod === "RAZORPAY"
+      ? `Pay ${formatCurrency(subtotal)}`
+      : "Place Order"}
+</Button>
 
               {paymentMethod === "ONLINE" && (
                 <p className="mt-3 text-center text-xs text-gray-400 dark:text-gray-500">
